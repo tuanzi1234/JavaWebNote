@@ -144,7 +144,9 @@ console.log(b);
 ```
 * **常见事件：**
 ![1748114061423](image/JavaScript基础/1748114061423.png) 
- 
+ ## 十一、JS代码优化
+![1748150572042](image/JavaScript基础/1748150572042.png)
+* **JS模块化：** 使用一个单独的JS文件将重复的代码抽离出来统一管理，使用export导出，需要使用时，使用`improt {函数名} from '文件路径'`导入。在HTML中使用`<script src="文件路径" type="module"></script>`引入模块化JS。
 
  
  
