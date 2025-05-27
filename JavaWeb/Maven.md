@@ -33,5 +33,22 @@
   * **default**：核心工作，如编译(compile)、测试(test)、打包(package)、安装(install)、部署(deploy)等。
   * **site**：生成报告，发布站点。
   * **同一套生命周期中，运行后面的阶段，前面会跟着运行。**
+## 五、Maven依赖范围：
+* **默认情况下，依赖的jar包可以在任何地方使用。可以通过scope属性来控制依赖的范围。**
+*  **scope属性：**
+  ![1748336037473](image/Maven/1748336037473.png)
+## 六、Maven的常见问题：
+* 若引入jar包时网络原因，依赖未下载完成，则会在maven仓库中生成一个.lastUpdated文件，若该文件不删除，则maven会认为该依赖已下载完成，不会重新下载，但因为该依赖并未下载，所以运行maven项目会报错。
+* **解决方案：** 
+  * 1.根据maven的坐标找出仓库中对应的.lastUpdated文件，删除该文件，重新运行项目。
+  * 2.通过命令(del /s .lastUpdated)批量递归删除仓库中所有.lastUpdated文件。重新加载项目。
+  可将第二个方案制作成脚本：
+```bash
+@echo off
+cd /d "D:\idea\maven"
+del /s /q *.lastUpdated
+echo Maven仓库.lastUpdated文件已清理完成
+pause
+```
  
    
