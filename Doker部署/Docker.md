@@ -1,87 +1,25 @@
 ### 一、Docker卸载重装步骤
+**一键安装:** **https://github.com/tech-shrimp/docker_installer**
 
-#### 1. 卸载旧版Docker
-
-```bash
-# 卸载Docker引擎及相关组件
-sudo apt-get purge docker-ce docker-ce-cli containerd.io docker-buildx-plugin
-
-# 删除残留数据和配置文件
-sudo rm -rf /var/lib/docker
-sudo rm -rf /var/lib/containerd
-
-# 删除Docker相关存储库配置
-sudo rm /etc/apt/sources.list.d/docker.list
-```
-
-#### 2. 安装Docker
+### 二、部署MySQL 8.0.32
 
 ```bash
-# 更新apt包索引
-sudo apt-get update
-
-# 安装必要依赖
-sudo apt-get install \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
-
-# 添加Docker官方GPG密钥
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-# 设置稳定版存储库
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# 安装Docker引擎
-sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-#### 3. 配置镜像加速器
-
-```bash
-# 创建Docker配置目录
-sudo mkdir -p /etc/docker
-
-# 配置国内镜像源（阿里云示例）
-sudo tee /etc/docker/daemon.json <<-'EOF'
-{
-  "registry-mirrors": [
-    "https://registry.docker-cn.com",
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com"
-  ]
-}
-EOF
-
-# 重启Docker服务使配置生效
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-```
-
-#### 4. 安装MySQL 8.0.32
-
-```bash
-# 拉取指定版本MySQL镜像
-docker pull mysql:8.0.32
-
 # 创建MySQL容器
 docker run -d \                         # docker run: 启动容器; -d: 后台运行容器;
   --name mysql8 \       # --name: 指定容器名称; mysql8: 容器名称,容器名称必须唯一,不能重复;
   -p 3306:3306 \        # -p: 端口映射; 3306(左): 宿主机端口; 3306(右): 容器端口;
+  -e TZ=Asia/Shanghai \  # -e: 设置环境变量; 设置时区为上海时区;
   -e MYSQL_ROOT_PASSWORD=your_strong_password \  # -e: 设置环境变量;  设置root密码
-  -e MYSQL_DATABASE=app_db \                   # 创建初始数据库
-  -v mysql_data:/var/lib/mysql \               # 数据卷持久化
-  mysql:8.0.32 \                # 镜像名称:版本, 若不指定tag，默认最新版
-  --character-set-server=utf8mb4 \             # 设置字符集
-  --collation-server=utf8mb4_unicode_ci        # 设置排序规则
+  mysql:8.0.32                 # 镜像名称:版本, 若不指定tag，默认最新版
 ```
 
-### 验证安装成功
+### 三、镜像和容器
+
+* 当我们利用Docker安装应用时，Docker会自动下载镜像(image)。镜像不仅包含应用本身，还包含应用需要的环境、配置、系统函数库。
+  Docker会在运行时创建一个隔离环境，叫容器(container)。
+* **镜像仓库：** Docker Hub，存储和管理镜像的平台。
+
+### 四、Docker常用命令
 
 #### 1. 验证Docker安装
 
@@ -118,8 +56,7 @@ SELECT VERSION();
 SHOW VARIABLES LIKE 'character_set_server';
 # 应输出：utf8mb4
 ```
-
-### Docker常用命令
+#### 3. 验证MySQL安装
 
 | **命令**                                 | **说明**           |
 | ---------------------------------------------- | ------------------------ |
@@ -145,18 +82,16 @@ SHOW VARIABLES LIKE 'character_set_server';
 > 2. MySQL密码需符合安全策略（大小写字母+数字+特殊字符，至少8位）
 > 3. 生产环境建议添加 `--restart=always`参数确保MySQL自启动
 
-### 二、镜像和容器
 
-* 当我们利用Docker安装应用时，Docker会自动下载镜像(image)。镜像不仅包含应用本身，还包含应用需要的环境、配置、系统函数库。Docker会在运行时创建一个隔离环境，叫容器(container)。
-* **镜像仓库：** Docker Hub，存储和管理镜像的平台。
-
-### 三、数据卷挂载
+### 五、数据卷挂载
 
 * 数据卷(volume)，Docker提供的一种数据共享方式，是一个虚拟目录，是容器内目录和宿主机目录间映射的桥梁。
   ![1750520373113](image/Docker/1750520373113.png)
 * **执行docker run命令时，使用 `-v 数据卷 : 容器内目录`形式可以完成数据卷挂载。(若数据卷不存在，则自动创建数据卷)**
+* **关于宿主机和容器的映射关系如图:**
+  ![1758297078448](image/Docker/1758297078448.png)
 
-### 四、基于本地目录挂载
+### 六、基于本地目录挂载
 
 * **`docker run -d --name 容器名 -p 宿主机端口:容器端口 -v 本地目录:容器目录 镜像名`**
   * **其中:**
@@ -164,71 +99,45 @@ SHOW VARIABLES LIKE 'character_set_server';
     * 例如：`-v mysql:/var/lib/mysql` 就是一个数据卷挂载，数据卷的名字为mysql。
     * 例如：`-v ./mysql:/var/lib/mysql` 会被识别成当前目录下的mysql目录。
 
-### 五、自定义镜像
+### 七、自定义镜像
 
 * **镜像：** 镜像就是包含了应用程序、程序运行的系统函数库、运行配置等文件的文件包。构建镜像的过程就是把上述文件打包的过程。
 * **Dockerfile：** Dockerfile是文本文件，其中包含一个个的指令(Instruction)，用指令来说明要执行什么操作来构建镜像。将来Docker可以根据Dockerfile来构建镜像。
   ![1750532603485](image/Docker/1750532603485.png)
 
-#### 1. 创建 Dockerfile 文件
-
-```bash
-# 创建项目目录
-mkdir jdk17-ubuntu && cd jdk17-ubuntu
-
-# 创建 Dockerfile
-touch Dockerfile
-```
-
-```bash
-# 确保在项目目录中
-cd ~/jdk17-ubuntu
-
-# 创建并编辑 Dockerfile
-nano Dockerfile
-```
-
-#### 2. 在 Dockerfile 中添加以下内容
+#### 1. 基于Ubuntu镜像创建Java运行环境自定义镜像
+**在 Dockerfile 中添加以下内容**
 
 ```bash
 # 使用官方 Ubuntu 24.04 LTS 基础镜像
 FROM ubuntu:24.04
 
-# 设置环境变量（避免交互式安装提示）
-ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=Asia/Shanghai
+# 设置环境变量, JDK安装目录，容器内时区
+ENV JAVA_DIR=/usr/local 
 
-# 配置阿里云镜像源（加速下载）
-RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-    sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+# 拷贝jak和java项目包
+COPY ./jdk8.tar.gz $JAVA_DIR/
+COPY ./docker-demo.jar /tem/app.jar
 
-# 更新软件包索引并安装 OpenJDK 17
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        openjdk-17-jdk \
-        ca-certificates \
-        curl \
-        tzdata && \
-    # 配置时区
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
-    # 清理缓存减小镜像体积
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# 安装JDK
+RUN cd $JAVA_DIR \ && tar -xf ./jdk8.tar.gz \ && mv ./jdk1.8.0_144 ./java8
 
 # 设置 Java 环境变量
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
-    PATH="/usr/lib/jvm/java-17-openjdk-amd64/bin:${PATH}"
+ENV JAVA_HOME=$JAVA_DIR/java8
+ENV PATH=$PATH:$JAVA_HOME/bin
 
-# 验证安装
-RUN java -version && javac -version
-
-# 设置工作目录
-WORKDIR /app
-
-# 容器启动命令
-CMD ["/bin/bash"]
+# 入口，java项目启动命令
+ENTRYPOINT ["java", "-jar", "/app.jar"]
 ```
-
+#### 2. 以JDK为基础镜像创建自定义镜像
+```bash
+# 使用openjdk镜像
+FROM openjdk:11.0-jre-buster
+# 拷贝jar包
+COPY docker-demo.jar /tem/app.jar
+# 入口
+ENTRYPOINT ["java", "-jar", "/app.jar"]
+```
 #### 3. 保存并退出编辑器
 
 * 在 nano 中：按 `Ctrl+X`，然后按 `Y` 确认保存，最后按 `Enter`
@@ -236,8 +145,8 @@ CMD ["/bin/bash"]
 #### 4. 构建 Docker 镜像
 
 ```bash
-# 构建镜像（注意最后的点表示当前目录）
-docker build -t jdk17-ubuntu:24.04 .
+# 构建镜像（注意最后的点表示当前目录）格式为repository:tag
+docker build -t myImage:1.0 .
 
 # 查看构建的镜像
 docker images | grep jdk17-ubuntu
