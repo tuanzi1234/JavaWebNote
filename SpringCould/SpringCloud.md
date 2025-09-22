@@ -168,3 +168,87 @@ openFeign是一个用于简化RESTful客户端访问的开源库, 使http请求�
    ```java
    @EnableFeignClients(defaultConfiguration = LoggerConfig.class)
    ```
+### 五、网关
+1. **网关就是网络的关口，负责请求的路由、转发、身份校验**
+2. **使用:**
+   (1)创建新模块
+   (2)引入依赖
+   ```xml
+   <dependencies>
+        <!--common-->
+        <dependency>
+            <groupId>com.heima</groupId>
+            <artifactId>hm-common</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!--网关-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+        <!--nacos discovery-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <!--负载均衡-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+    </dependencies>
+   ```
+   (3)编写启动类
+   (4)配置路由规则
+   ```yml
+   spring:
+      cloud:
+         gateway:
+            routes:
+               - id: item # 路由id, 自定义, 唯一
+                 uri: lb://item-service # 路由的目标地址, lb:表示负载均衡
+                 predicates: # 路由断言, 判断请求是否符合规则, 符合则路由到目标
+                   - Path=/item/** # 路径匹配规则, 以/item开头的请求都会被路由到item-service
+               - id: payment
+               # ······ 其他路由规则
+   ```
+3. **常见属性:**
+   (1)**`id`:** 路由id, 自定义, 唯一
+   (2)**`uri`:** 路由的目标地址
+   (3)**`predicates`:** 路由断言, 满足断言的请求才会被路由到目标
+   spring提供了12种基本的RoutePredicateFactory实现:
+   ![1758566172334](image/SpringCloud/1758566172334.png)
+   (4)**`filters`:** 过滤器, 对请求或响应进行特殊处理
+   spring提供了33种路由过滤器:
+   ![1758566489675](image/SpringCloud/1758566489675.png)
+4. **网关请求处理流程:**
+   ![1758567078395](image/SpringCloud/1758567078395.png)
+5. **自定义过滤器:**
+   `GatewayFilter`: 路由过滤器，作用于任意指定的路由；默认不生效，要配置到路由后生效
+   `GlobalFilter`: 全局过滤器，作用于所有路由；声明后自动生效
+   ```java
+   @Component
+   public class MyGlobalFilter implements GlobalFilter, Ordered {
+      @Override
+      public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+         // 1.获取请求头
+         ServerHttpRequest request = exchange.getRequest();
+         // 2. 过滤器业务处理
+         HttpHeaders headers = request.getHeaders();
+         System.out.println("Headers的值为" + headers);
+         // 3.放行
+         return chain.filter(exchange);
+      }
+      @Override
+      public int getOrder() {
+         // 优先级, 数值越小优先级越高
+         return 0;
+      }
+   }
+   ```
+6. **传递用户信息:**
+   ```java
+   ServerWebExchange swe = exchange.mutate()
+                .request(builder -> builder.header("user-info", userId.toString()))
+                .build();
+   ```
