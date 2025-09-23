@@ -252,3 +252,138 @@ openFeign是一个用于简化RESTful客户端访问的开源库, 使http请求�
                 .request(builder -> builder.header("user-info", userId.toString()))
                 .build();
    ```
+7. **微服务数据传输的解决方案:**
+   ![1758637072045](image/SpringCloud/1758637072045.png)
+### 六、配置管理
+1. **基于`NacosConfig`实现配置管理原理**
+   ![1758641151431](image/SpringCloud/1758641151431.png)
+2. **使用步骤**
+   (1)引入依赖
+   ```xml
+   <!-- nacos配置管理 -->
+   <dependency>
+   <groupId>com.alibaba.cloud</groupId>
+   <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+   </dependency>
+   <!-- 读取bootstrap.yaml中的配置信息 -->
+   <dependency>
+   <groupId>org.springframework.cloud</groupId>
+   <artifactId>spring-cloud-starter-bootstrap</artifactId>
+   </dependency>
+   ```
+   (2)新建`bootstrap.yaml`文件
+   ```yaml
+   spring:
+      application:
+         name: config-client # 服务名称
+      profiles:
+         active: dev
+      cloud:
+         nacos:
+            server-addr: 192.168.56.10:8848 # nacos地址
+            config:
+               file-extension: yaml # 配置文件后缀名
+               shared-configs: # 共享配置
+                 - dataId: hm-common-dev # 配置文件ID
+                 # 其他配置文件ID
+   ```
+3. **配置热更新**
+   当修改配置文件时，配置文件会自动更新，不需要重启服务
+   (1)nacos中创建一个配置文件
+   微服务名称-项目profile(可选).配置文件后缀名
+   `[Spring.application.name]-[spring.profiles.active].[file-extension]`
+   (2)微服务中要以特定方式读取需要热更新的配置属性
+   在需要热更新的类中加`@ConfigurationProperties(prefix = "hm-common")`注解
+4. **动态路由**
+   要实现动态路由，首先需要将路由配置到Nacos中，当Nacos中的路由配置变更时，推送到网关，实时更新网关的路由信息。
+   (1)监听路由配置
+   ```java
+   @Autowired
+   private NacosConfigManager nacosConfigManager;
+   private final String dataId = "gateway-routes.json";
+   private final String group = "DEFAULT_GROUP";
+
+   @PostConstruct
+   public void initRouteConfigListener() throws NacosException {
+       // 1.项目启动时，先拉取一次配置，并添加配置监听器
+       String configInfo = nacosConfigManager.getConfigService()
+               .getConfigAndSignListener(dataId, group, 5000, new Listener() {
+                   @Override
+                   public Executor getExecutor() {
+                       return null;
+                   }
+                   @Override
+                   public void receiveConfigInfo(String configInfo) {
+                       // 2.监听到配置信息变化，更新路由信息
+                       updateConfigInfo(configInfo);
+                   }
+               });
+       // 3.第一次读取配置，更新路由信息
+       updateConfigInfo(configInfo);
+   }
+   ```
+   (2)更新路由信息
+   ```java
+   public void updateConfigInfo(String configInfo) {
+       log.info("更新路由信息：{}", configInfo);
+       // 1.解析配置信息，转为RouteDefinition对象
+       List<RouteDefinition> routeDefinitionList = JSONUtil.toList(configInfo, RouteDefinition.class);
+       log.info("解析后的路由数量：{}", routeDefinitionList.size());
+
+       // 2.删除旧路由
+       routeIds.forEach(routeId -> {
+           routeDefinitionWriter.delete(Mono.just(routeId)).subscribe();
+       });
+       routeIds.clear();
+
+       // 3.更新路由表
+       for (RouteDefinition routeDefinition : routeDefinitionList) {
+           log.info("添加路由：{}", routeDefinition.getId());
+           // 保存
+           routeDefinitionWriter.save(Mono.just(routeDefinition)).subscribe();
+           // 记录路由信息
+           routeIds.add(routeDefinition.getId());
+       }
+   }
+   ```
+### 七、微服务保护和分布式事务
+1. **雪崩问题**: 
+   微服务相互调用，服务提供这出现故障或阻塞；
+   服务调用者没有做好异常处理，导致自身故障；
+   调用链中所有的服务级联失败，导致整个集群故障；
+2. **服务保护方案**: 
+   **线程隔离**: 舱壁模式，通过限定每一个业务能够使用的线程数量而将业务隔离，避免故障扩散。
+   **服务熔断**: 由断路器统计请求的异常比例，如果超出阈值则会熔断该业务，拦截该接口的请求。
+3. **Sentinel使用步骤:**
+   (1)下载jar包
+   [Sentinel下载地址](https://github.com/alibaba/Sentinel/releases)
+   (2)放在无中文的目录下运行: `java -Dserver.port=8090 -Dcsp.sentinel.dashboard.server=localhost:8090 -Dproject.name=sentinel-dashboard -jar sentinel-dashboard.jar`
+   (3)访问: `http://localhost:8090`, 默认用户密码为 `sentinel/sentinel`
+   (4)微服务整合:
+   引入依赖:
+   ```xml
+   <!-- sentinel -->
+   <dependency>
+         <groupId>com.alibaba.cloud</groupId>
+         <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+   </dependency>
+   ```
+   添加配置:
+   ```yaml
+   spring:
+      cloud:
+         sentinel:
+            transport:
+               dashboard: localhost:8090
+   ```
+4. **簇点链路**:
+   单机调用链路，一次请求进入服务后经过的每一个被Sentinel监控的资源链，
+   默认Sentinel会监控SpringMVC的每一个Http请求。
+   限流、熔断等都是针对簇点链路中的资源设置的。
+   资源名默认就是请求的URL。
+   Restful风格的API请求路径一般相同，会导致簇点资源名重复，因此要修改配置，把请求方式+请求路径作为簇点资源名。
+   ```yaml
+   http-method-specify: true # 启用请求方式+请求路径作为簇点资源名，与transport齐平
+   ```
+
+
