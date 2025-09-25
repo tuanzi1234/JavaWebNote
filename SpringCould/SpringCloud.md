@@ -475,3 +475,78 @@ openFeign是一个用于简化RESTful客户端访问的开源库, 使http请求�
    ```
    **此时访问`http://192.168.3.54:7099`即可查看Seata控制台**
    用户密码默认为`admin/admin`
+3. **微服务集成seata**:
+   (1) 添加依赖: 
+   ```xml
+   <!--统一配置管理-->
+   <dependency>
+       <groupId>com.alibaba.cloud</groupId>
+       <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+   </dependency>
+   <!--读取bootstrap文件-->
+   <dependency>
+       <groupId>org.springframework.cloud</groupId>
+       <artifactId>spring-cloud-starter-bootstrap</artifactId>
+   </dependency>
+   <!--seata-->
+   <dependency>
+       <groupId>com.alibaba.cloud</groupId>
+       <artifactId>spring-cloud-starter-alibaba-seata</artifactId>
+   </dependency>
+   ```
+   (2) 添加配置: 
+   ```yaml
+   seata:
+      registry: # 注册中心，微服务根据这些信息去注册中心获取TC服务地址
+         type: nacos # 注册中心类型 nacos
+         nacos:
+            server-addr: 192.168.3.54:8848
+            namespace: ""
+            group: DEFAULT_GROUP
+            application: seata-server # seata服务名称
+            username: nacos
+            password: nacos
+      tx-service-group: hmall # 事务组名称
+      service:
+         vgroup-mapping: # 事务组和tc集群的映射关系
+           hmall: "default"
+   ```
+4. **XA模式**:
+   XA模式描述了全局的TM与局部的RM之间的接口。
+   ![1758816773969](image/SpringCloud/1758816773969.png)
+   **第一阶段工作**:
+   (1) RM注册分支事务到TC
+   (2) RM执行分支业务sql但不提交
+   (3) RM报告执行状态到TC
+   **第二阶段工作**:
+   (1) TC检测各个分支事务的执行状态:
+       若都执行成功，则通知所有RM提交事务;
+       若有执行失败，则通知所有RM回滚事务;
+   (2) RM接收TC的指令，提交或回滚事务
+   **XA模式实现**: 
+   (1) 修改每个参与事务的微服务的application.yml: 
+   ```yaml
+   spring:
+      data-source-proxy-mode: XA # 开启数据源代理的XA模式
+   ```
+   (2) 发起全局事务的入口方法添加@GlobalTransactional注解
+   (3) 重启服务测试
+5. **AT模式**:
+   Seata主推AT模式，弥补了XA模型中资源锁定周期长的问题。
+   ![1758825450275](image/SpringCloud/1758825450275.png)
+   **第一阶段RM工作**: 
+   (1) 注册分支事务
+   (2) 记录undo-log(数据快照)
+   (3) 执行业务SQL提交
+   (4) 报告事务状态
+   **第二阶段工作**: 
+   提交RM时，删除undo-log
+   回滚RM时，根据undo-log恢复到更新前
+   **AT模式实现**: 
+   (1) 添加seata-at.sql到参与业务的对应数据库中，用于存储undo-log信息
+   (2) 修改每个参与事务的application.yml:
+   ```yaml
+   spring:
+      data-source-proxy-mode: XA # 开启数据源代理的XA模式
+   ```
+
